@@ -1,0 +1,5 @@
+#![deny(clippy::perf)]
+#![deny(clippy::linkedlist)]
+#![deny(clippy::vec_box)]
+#![deny(clippy::ptr_arg)]
+#![warn(clippy::pedantic)]
