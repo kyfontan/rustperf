@@ -1,0 +1,18 @@
+[package]
+name = "machine_oriented_lints"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[lib]
+path = "../crates/machine-oriented-lints/src/lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+
+[package.metadata.rust-analyzer]
+rustc_private = true
