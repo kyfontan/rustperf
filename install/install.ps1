@@ -8,17 +8,18 @@ $CargoHomeDir = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $HOME 
 $ConfigFile = Join-Path $CargoHomeDir 'config.toml'
 $CargoBinDir = Join-Path $CargoHomeDir 'bin'
 $RustperfCmdBin = Join-Path $CargoBinDir 'rustperf.cmd'
-$RustperfTemplate = Join-Path $RootDir 'templates\rustperf.cmd'
+$RustperfTemplate = Join-Path $RootDir 'assets\templates\rustperf.cmd'
 $RustToolchainFile = Join-Path $RootDir 'rust-toolchain.toml'
-$LintCrateDir = Join-Path $RootDir 'machine-oriented-lints'
+$LintCrateDir = Join-Path $RootDir 'crates\machine-oriented-lints'
 $LintCargoConfigDir = Join-Path $LintCrateDir '.cargo'
 $LintCargoConfigFile = Join-Path $LintCargoConfigDir 'config.toml'
-$ProjectDylintTemplate = Join-Path $RootDir 'templates\project.dylint.toml'
-$GeneratedProjectDylint = Join-Path $RootDir 'templates\project.dylint.generated.toml'
-$DylintConfigTemplate = Join-Path $RootDir 'templates\dylint.toml'
-$GeneratedDylintConfig = Join-Path $RootDir 'templates\dylint.generated.toml'
+$ProjectDylintTemplate = Join-Path $RootDir 'assets\templates\project.dylint.toml'
+$GeneratedProjectDylint = Join-Path $RootDir 'assets\generated\project.dylint.toml'
+$DylintConfigTemplate = Join-Path $RootDir 'assets\templates\dylint.toml'
+$GeneratedDylintConfig = Join-Path $RootDir 'assets\generated\dylint.toml'
 $VsCodeUserDir = Join-Path $env:APPDATA 'Code\User'
 $PinnedNightly = if ($env:PINNED_NIGHTLY) { $env:PINNED_NIGHTLY } else { 'nightly-2026-03-01' }
+$DylintRuntimeVersion = if ($env:DYLINT_RUNTIME_VERSION) { $env:DYLINT_RUNTIME_VERSION } else { '5.0.0' }
 
 function Write-Section([string]$Message) {
     Write-Host "`n==> $Message" -ForegroundColor Blue
@@ -131,7 +132,7 @@ function Generate-ProjectDylintTemplates() {
         $content = @"
 [workspace.metadata.dylint]
 libraries = [
-  { path = "$($RootDir.Replace('\', '/'))/machine-oriented-lints" },
+  { path = "$($RootDir.Replace('\', '/'))/crates/machine-oriented-lints" },
 ]
 "@
         Set-FileContentAtomically $GeneratedProjectDylint $content
@@ -164,7 +165,36 @@ function Install-RustperfCommand() {
     }
 
     New-Item -ItemType Directory -Force -Path $CargoBinDir | Out-Null
-    Copy-Item -Force $RustperfTemplate $RustperfCmdBin
+    $raw = Get-Content $RustperfTemplate -Raw
+    $updated = $raw.Replace('__RUST_PERF_NORM_ROOT__', $RootDir.Replace('\', '/'))
+    Set-FileContentAtomically $RustperfCmdBin $updated
+}
+
+function Test-ExpectedDylintRuntime() {
+    $cargoDylint = Get-Command cargo-dylint -ErrorAction SilentlyContinue
+    $dylintLink = Get-Command dylint-link -ErrorAction SilentlyContinue
+    if (-not $cargoDylint -or -not $dylintLink) {
+        return $false
+    }
+
+    $version = & cargo dylint --version 2>$null
+    return $version -eq "cargo-dylint $DylintRuntimeVersion"
+}
+
+function Install-DylintRuntime() {
+    if (Test-ExpectedDylintRuntime) {
+        Write-Step "cargo-dylint $DylintRuntimeVersion and dylint-link already installed"
+        return
+    }
+
+    if (Get-Command cargo-binstall -ErrorAction SilentlyContinue) {
+        Write-Step 'Installing cargo-dylint and dylint-link with cargo-binstall'
+        & cargo binstall --no-confirm "cargo-dylint@$DylintRuntimeVersion" "dylint-link@$DylintRuntimeVersion"
+        return
+    }
+
+    Write-Step 'Installing cargo-dylint and dylint-link from source'
+    & cargo install --locked "cargo-dylint@$DylintRuntimeVersion" "dylint-link@$DylintRuntimeVersion"
 }
 
 Write-Section 'Checking prerequisites'
@@ -184,17 +214,16 @@ Write-Step 'Installing nightly components required by Dylint'
 & rustup component add --toolchain $PinnedNightly rust-src rustc-dev llvm-tools-preview
 
 Write-Section 'Installing lint runtime'
-Write-Step 'Installing cargo-dylint and dylint-link'
-& cargo install cargo-dylint dylint-link
+Install-DylintRuntime
 
 Write-Section 'Configuring this repository'
 Write-Step 'Writing pinned rust-toolchain.toml'
 Write-RustToolchainFile
 
-Write-Step 'Writing machine-oriented-lints/.cargo/config.toml'
+Write-Step 'Writing crates/machine-oriented-lints/.cargo/config.toml'
 Write-LintCargoConfig
 
-Write-Step 'Checking machine-oriented-lints/Cargo.toml'
+Write-Step 'Checking crates/machine-oriented-lints/Cargo.toml'
 Ensure-CdylibInLintCrate
 
 Write-Section 'Configuring user shortcuts'
@@ -207,7 +236,7 @@ Install-RustperfCommand
 
 Write-Section 'Installing editor assets'
 Write-Step 'Installing VS Code Rust snippet'
-Copy-Item -Force (Join-Path $RootDir 'snippets\rust.json') (Join-Path $VsCodeUserDir 'snippets\rust.json')
+Copy-Item -Force (Join-Path $RootDir 'assets\vscode\rust.json') (Join-Path $VsCodeUserDir 'snippets\rust.json')
 
 Write-Step 'Generating Cargo.toml and dylint.toml examples'
 Generate-ProjectDylintTemplates
@@ -226,6 +255,8 @@ Write-Host 'Quick checks:'
 Write-Host "  cd `"$RootDir`""
 Write-Host '  cargo check -p machine_oriented_lints'
 Write-Host '  rustperf'
+Write-Host "`nTo configure a project automatically, run this from that project root:"
+Write-Host '  rustperf init'
 Write-Host "`nAdd this to Cargo.toml:`n"
 Get-Content $GeneratedProjectDylint
 Write-Host "`nAdd this to dylint.toml:`n"

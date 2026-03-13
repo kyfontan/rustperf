@@ -11,7 +11,7 @@ CONFIG_FILE="$CARGO_HOME_DIR/config.toml"
 RUSTPERF_BIN="$CARGO_HOME_DIR/bin/rustperf"
 RUSTPERF_CMD_BIN="$CARGO_HOME_DIR/bin/rustperf.cmd"
 RUST_TOOLCHAIN_FILE="$ROOT_DIR/rust-toolchain.toml"
-LINT_CARGO_CONFIG="$ROOT_DIR/machine-oriented-lints/.cargo/config.toml"
+LINT_CARGO_CONFIG="$ROOT_DIR/crates/machine-oriented-lints/.cargo/config.toml"
 
 detect_platform
 
@@ -45,7 +45,7 @@ echo
 log_success "Uninstall complete."
 echo
 echo "Remaining files:"
-echo "  $ROOT_DIR/templates/"
-echo "  $ROOT_DIR/machine-oriented-lints/"
+echo "  $ROOT_DIR/assets/"
+echo "  $ROOT_DIR/crates/machine-oriented-lints/"
 echo
 echo "You can delete the repo manually if you no longer need it."

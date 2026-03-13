@@ -1,0 +1,4 @@
+[workspace.metadata.dylint]
+libraries = [
+  { path = "__RUST_PERF_NORM_ROOT__/crates/machine-oriented-lints" },
+]

@@ -1,4 +1,0 @@
-[workspace.metadata.dylint]
-libraries = [
-  { path = "C:/Users/ratp3/Downloads/LowLevel_RustNorm/machine-oriented-lints" },
-]

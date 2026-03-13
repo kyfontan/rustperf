@@ -1,0 +1,15 @@
+[machine_oriented_lints]
+# Warn when Vec::with_capacity uses a tiny compile-time constant.
+small_vec_capacity_threshold = 64
+
+# Warn when Vec::new() is followed by N or more consecutive push calls.
+vec_new_then_push_min_pushes = 2
+
+# Warn when HashMap::new() is followed by N or more consecutive insert calls.
+hash_map_new_then_insert_min_inserts = 2
+
+# Warn when HashSet::new() is followed by N or more consecutive insert calls.
+hash_set_new_then_insert_min_inserts = 2
+
+# Warn when String::new() is followed by N or more consecutive push_str calls.
+string_new_then_push_str_min_calls = 2

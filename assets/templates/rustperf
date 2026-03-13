@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RUSTPERF_NORM_ROOT="__RUST_PERF_NORM_ROOT__"
+LINT_LIBRARY_PATH="$RUSTPERF_NORM_ROOT/crates/machine-oriented-lints"
+
+append_block_if_missing() {
+  local file_path="$1"
+  local marker="$2"
+  local block="$3"
+  local last_char=""
+
+  if [[ -f "$file_path" ]] && grep -Fq "$marker" "$file_path"; then
+    return
+  fi
+
+  if [[ -f "$file_path" && -s "$file_path" ]]; then
+    last_char="$(tail -c 1 "$file_path" 2>/dev/null || true)"
+    if [[ -n "$last_char" ]]; then
+      printf '\n\n' >> "$file_path"
+    else
+      printf '\n' >> "$file_path"
+    fi
+    printf '%s' "$block" >> "$file_path"
+    return
+  fi
+
+  printf '%s' "$block" > "$file_path"
+}
+
+init_project() {
+  local cargo_toml="$PWD/Cargo.toml"
+  local dylint_toml="$PWD/dylint.toml"
+  local cargo_block dylint_block
+
+  if [[ ! -f "$cargo_toml" ]]; then
+    printf 'Error: no Cargo.toml found in %s\n' "$PWD" >&2
+    exit 1
+  fi
+
+  cargo_block=$(cat <<EOF
+[workspace.metadata.dylint]
+libraries = [
+  { path = "$LINT_LIBRARY_PATH" },
+]
+EOF
+)
+
+  dylint_block=$(cat <<'EOF'
+[machine_oriented_lints]
+# Warn when Vec::with_capacity uses a tiny compile-time constant.
+small_vec_capacity_threshold = 64
+
+# Warn when Vec::new() is followed by N or more consecutive push calls.
+vec_new_then_push_min_pushes = 2
+EOF
+)
+
+  append_block_if_missing "$cargo_toml" "[workspace.metadata.dylint]" "$cargo_block"
+  append_block_if_missing "$dylint_toml" "[machine_oriented_lints]" "$dylint_block"
+
+  printf 'Updated %s\n' "$cargo_toml"
+  printf 'Updated %s\n' "$dylint_toml"
+}
+
+if [[ "${1:-}" == "init" ]]; then
+  shift
+  if [[ $# -gt 0 ]]; then
+    printf 'Error: rustperf init does not accept extra arguments\n' >&2
+    exit 1
+  fi
+
+  init_project
+  exit 0
+fi
+
+exec cargo dylint --all "$@"

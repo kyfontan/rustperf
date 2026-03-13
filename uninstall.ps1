@@ -7,7 +7,7 @@ $CargoHomeDir = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $HOME 
 $ConfigFile = Join-Path $CargoHomeDir 'config.toml'
 $RustperfCmdBin = Join-Path $CargoHomeDir 'bin\rustperf.cmd'
 $RustToolchainFile = Join-Path $RootDir 'rust-toolchain.toml'
-$LintCargoConfig = Join-Path $RootDir 'machine-oriented-lints\.cargo\config.toml'
+$LintCargoConfig = Join-Path $RootDir 'crates\machine-oriented-lints\.cargo\config.toml'
 $VsCodeUserDir = Join-Path $env:APPDATA 'Code\User'
 $SnippetFile = Join-Path $VsCodeUserDir 'snippets\rust.json'
 
@@ -77,6 +77,6 @@ Write-Host ""
 Write-Host 'Uninstall complete.' -ForegroundColor Green
 Write-Host ""
 Write-Host 'Remaining files:'
-Write-Host "  $RootDir\templates\"
-Write-Host "  $RootDir\machine-oriented-lints\"
+Write-Host "  $RootDir\assets\"
+Write-Host "  $RootDir\crates\machine-oriented-lints\"
 Write-Host "`nYou can delete the repo manually if you no longer need it."

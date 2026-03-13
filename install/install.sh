@@ -11,18 +11,19 @@ CONFIG_FILE="$CARGO_HOME_DIR/config.toml"
 CARGO_BIN_DIR="$CARGO_HOME_DIR/bin"
 RUSTPERF_BIN="$CARGO_BIN_DIR/rustperf"
 RUSTPERF_CMD_BIN="$CARGO_BIN_DIR/rustperf.cmd"
-RUSTPERF_TEMPLATE="$ROOT_DIR/templates/rustperf"
-RUSTPERF_CMD_TEMPLATE="$ROOT_DIR/templates/rustperf.cmd"
+RUSTPERF_TEMPLATE="$ROOT_DIR/assets/templates/rustperf"
+RUSTPERF_CMD_TEMPLATE="$ROOT_DIR/assets/templates/rustperf.cmd"
 RUST_TOOLCHAIN_FILE="$ROOT_DIR/rust-toolchain.toml"
-LINT_CRATE_DIR="$ROOT_DIR/machine-oriented-lints"
+LINT_CRATE_DIR="$ROOT_DIR/crates/machine-oriented-lints"
 LINT_CARGO_CONFIG_DIR="$LINT_CRATE_DIR/.cargo"
 LINT_CARGO_CONFIG_FILE="$LINT_CARGO_CONFIG_DIR/config.toml"
-PROJECT_DYLINT_TEMPLATE="$ROOT_DIR/templates/project.dylint.toml"
-GENERATED_PROJECT_DYLINT="$ROOT_DIR/templates/project.dylint.generated.toml"
-DYLINT_CONFIG_TEMPLATE="$ROOT_DIR/templates/dylint.toml"
-GENERATED_DYLINT_CONFIG="$ROOT_DIR/templates/dylint.generated.toml"
+PROJECT_DYLINT_TEMPLATE="$ROOT_DIR/assets/templates/project.dylint.toml"
+GENERATED_PROJECT_DYLINT="$ROOT_DIR/assets/generated/project.dylint.toml"
+DYLINT_CONFIG_TEMPLATE="$ROOT_DIR/assets/templates/dylint.toml"
+GENERATED_DYLINT_CONFIG="$ROOT_DIR/assets/generated/dylint.toml"
 
 PINNED_NIGHTLY="${PINNED_NIGHTLY:-nightly-2026-03-01}"
+DYLINT_RUNTIME_VERSION="${DYLINT_RUNTIME_VERSION:-5.0.0}"
 
 detect_platform
 
@@ -86,7 +87,7 @@ ensure_cdylib_in_lint_crate() {
   if ! grep -Eq 'crate-type[[:space:]]*=[[:space:]]*\[[^]]*"cdylib"[^]]*\]' "$cargo_toml"; then
     printf '\n' >&2
     log_warning "$cargo_toml does not appear to declare [lib] crate-type = [\"cdylib\"]" >&2
-    printf 'Dylint expects a dynamic library. Add this to machine-oriented-lints/Cargo.toml:\n\n' >&2
+      printf 'Dylint expects a dynamic library. Add this to crates/machine-oriented-lints/Cargo.toml:\n\n' >&2
     printf '[lib]\ncrate-type = ["cdylib"]\n\n' >&2
   fi
 }
@@ -134,7 +135,7 @@ generate_project_dylint_templates() {
     write_file_atomically "$GENERATED_PROJECT_DYLINT" <<EOF
 [workspace.metadata.dylint]
 libraries = [
-  { path = "$ROOT_DIR/machine-oriented-lints" },
+  { path = "$ROOT_DIR/crates/machine-oriented-lints" },
 ]
 EOF
   fi
@@ -159,16 +160,37 @@ install_rustperf_command() {
       exit 1
     fi
 
-    cp "$RUSTPERF_CMD_TEMPLATE" "$RUSTPERF_CMD_BIN"
+    sed "s|__RUST_PERF_NORM_ROOT__|${ROOT_DIR//|/\\|}|g" "$RUSTPERF_CMD_TEMPLATE" > "$RUSTPERF_CMD_BIN"
   else
     if [[ ! -f "$RUSTPERF_TEMPLATE" ]]; then
       printf 'Error: rustperf command template not found: %s\n' "$RUSTPERF_TEMPLATE" >&2
       exit 1
     fi
 
-    cp "$RUSTPERF_TEMPLATE" "$RUSTPERF_BIN"
+    sed "s|__RUST_PERF_NORM_ROOT__|${ROOT_DIR//|/\\|}|g" "$RUSTPERF_TEMPLATE" > "$RUSTPERF_BIN"
     chmod +x "$RUSTPERF_BIN"
   fi
+}
+
+have_expected_dylint_runtime() {
+  cargo dylint --version 2>/dev/null | grep -Fxq "cargo-dylint $DYLINT_RUNTIME_VERSION" \
+    && command -v dylint-link >/dev/null 2>&1
+}
+
+install_dylint_runtime() {
+  if have_expected_dylint_runtime; then
+    log_step "cargo-dylint $DYLINT_RUNTIME_VERSION and dylint-link already installed"
+    return
+  fi
+
+  if cargo binstall -V >/dev/null 2>&1; then
+    log_step "Installing cargo-dylint and dylint-link with cargo-binstall"
+    cargo binstall --no-confirm "cargo-dylint@$DYLINT_RUNTIME_VERSION" "dylint-link@$DYLINT_RUNTIME_VERSION"
+    return
+  fi
+
+  log_step "Installing cargo-dylint and dylint-link from source"
+  cargo install --locked "cargo-dylint@$DYLINT_RUNTIME_VERSION" "dylint-link@$DYLINT_RUNTIME_VERSION"
 }
 
 log_section "Checking prerequisites"
@@ -195,17 +217,16 @@ log_step "Installing nightly components required by Dylint"
 rustup component add --toolchain "$PINNED_NIGHTLY" rust-src rustc-dev llvm-tools-preview
 
 log_section "Installing lint runtime"
-log_step "Installing cargo-dylint and dylint-link"
-cargo install cargo-dylint dylint-link
+install_dylint_runtime
 
 log_section "Configuring this repository"
 log_step "Writing pinned rust-toolchain.toml"
 write_rust_toolchain_file
 
-log_step "Writing machine-oriented-lints/.cargo/config.toml"
+log_step "Writing crates/machine-oriented-lints/.cargo/config.toml"
 write_lint_cargo_config
 
-log_step "Checking machine-oriented-lints/Cargo.toml"
+log_step "Checking crates/machine-oriented-lints/Cargo.toml"
 ensure_cdylib_in_lint_crate
 
 log_section "Configuring user shortcuts"
@@ -222,7 +243,7 @@ install_rustperf_command
 
 log_section "Installing editor assets"
 log_step "Installing VS Code Rust snippet"
-cp "$ROOT_DIR/snippets/rust.json" "$VSCODE_USER_DIR/snippets/rust.json"
+cp "$ROOT_DIR/assets/vscode/rust.json" "$VSCODE_USER_DIR/snippets/rust.json"
 
 log_step "Generating Cargo.toml and dylint.toml examples"
 generate_project_dylint_templates
@@ -246,6 +267,8 @@ printf 'Quick checks:\n'
 printf '  cd "%s"\n' "$ROOT_DIR"
 printf '  cargo check -p machine_oriented_lints\n'
 printf '  rustperf\n\n'
+printf 'To configure a project automatically, run this from that project root:\n'
+printf '  rustperf init\n\n'
 
 printf 'Add this to Cargo.toml:\n\n'
 cat "$GENERATED_PROJECT_DYLINT"

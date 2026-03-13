@@ -1,7 +1,0 @@
-#![deny(clippy::perf)]
-#![deny(clippy::linkedlist)]
-#![deny(clippy::vec_box)]
-#![deny(clippy::ptr_arg)]
-#![deny(clippy::large_stack_arrays)]
-#![deny(clippy::large_types_passed_by_value)]
-#![warn(clippy::pedantic)]

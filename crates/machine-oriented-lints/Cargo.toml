@@ -8,8 +8,8 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-dylint_linting = "4.1.2"
 serde = { version = "1", features = ["derive"] }
+toml = "0.8"
 
 [package.metadata.rust-analyzer]
 rustc_private = true
